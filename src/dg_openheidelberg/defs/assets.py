@@ -63,19 +63,24 @@ def create_user_accounts():
     if not tasks:
         return "No tasks found with status 'scheduled' in OpenProject"
     for task in tasks:
+        if not task.get(CUSTOMFIELD['username']):
+            task[CUSTOMFIELD['username']] = f"{task[CUSTOMFIELD['firstname']][0]}{task[CUSTOMFIELD['lastname']]}".lower().replace(" ", "")
+        # Replace umlauts in username
+            task[CUSTOMFIELD['username']] = replace_umlauts(task[(CUSTOMFIELD['username'])])
+
         # Get couchdb entry
         docs = client.get_doc_by_member_id(member_id=task['id'])
         if not docs:
-            wp.add_comment(member_id=task['id'], comment="No CouchDB document found for this member\n Something went wrong")
-            wp.update_status(task=task, status='In specification')
-            continue
+            # no document found. probably task was initialised via openproject directly
+            doc = client.create_doc_from_task(task=task)
+            wp.add_comment(member_id=task['id'], comment="CouchDB document created")
         elif len(docs) == 1:
             doc = docs[0]
         else:
             wp.add_comment(member_id=task['id'], comment="Multiple CouchDB documents found for this member\n Please fix this first")
             wp.update_status(task=task, status='In specification')
             continue
-        task[CUSTOMFIELD['username']] = replace_umlauts(task[(CUSTOMFIELD['username'])])
+        
         # Create openproject user accounts from task data
         if task.get(CUSTOMFIELD['openproject']):
             if doc.get('openproject'):
@@ -131,7 +136,7 @@ def update_couchdb():
     client = Client()
     #get all documents from CouchDB
     for doc in client.get_all_docs():
-        if doc['member_id']:
+        if doc.get('member_id'):
             member = wp.get_member(doc['member_id'])
             if not member:
                 # TODO: Handle missing member case
@@ -147,7 +152,7 @@ def update_couchdb():
                 doc['email'] = member[CUSTOMFIELD['email']]
                 doc['username'] = member[CUSTOMFIELD['username']]
                 doc['git'] = member[CUSTOMFIELD['git']]
-                doc['public_key'] = member[CUSTOMFIELD['public key']]
+                doc['public_key'] = member[CUSTOMFIELD['public_key']]
                 doc['telephone'] = member[CUSTOMFIELD['telephone']]
                 doc['training'] = member['_links'][CUSTOMFIELD['training']]
                 doc['altstadt'] = member[CUSTOMFIELD['altstadt']]
@@ -156,13 +161,14 @@ def update_couchdb():
                 client.db.put(doc)
         else:
             # no member_id means initialisation was not run yet
+            print(f"Document {doc['_id']} has no member_id, skipping update.")
             continue
     return "CouchDB updated successfully with OpenProject user task data"
 
 @dg.asset(name="validate_user_openproject", 
           group_name="consolidation",
           deps=["update_couchdb"],
-          description="opu->>couch\nValidate user data from OpenProject")
+          description="opu->>couch\nValidate couch user data from OpenProject")
 def user_openproject_data():
     """opu->>couch Load user data from OpenProject"""
     # Fetch user data from OpenProject
@@ -170,21 +176,24 @@ def user_openproject_data():
     client = Client()
     res = up.get_users()
     for user in res['users']:
+        id = f"{user['firstName']}.{user['lastName']}".replace(" ", "_").lower()
         # Create or update user in CouchDB
         openproject_data = up.user_info(user)
         # get couchdb document
-        docs = client.get_doc_by_openproject_id(openproject_id=user['id']) or \
-            client.get_doc_by_email(email=user['email'])
-        if docs and len(docs) == 1:
-            doc = docs[0]
+        doc = client.db.get(id)
+        if not doc:
+            docs = client.get_doc_by_openproject_id(openproject_id=user['id']) or \
+                client.get_doc_by_email(email=user['email'])
+            if docs and len(docs) == 1:
+                doc = docs[0]
             # Update existing document
-            doc['openproject'] = openproject_data
-        else:
-            # TODO: handle this case
-            # We have no document yet
-            # we leave this for now until the delete workflow is specified
-            continue
+            else:
+                # TODO: handle this case
+                # We have no document yet
+                # we leave this for now until the delete workflow is specified
+                continue
         # Save to CouchDB
+        doc['openproject'] = openproject_data
         client.db.put(doc)
     return res
 

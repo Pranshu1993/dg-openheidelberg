@@ -13,7 +13,7 @@ CUSTOMFIELD = {
     'git': 'customField17',
     'nextcloud': 'customField10',
     'openproject': 'customField8',
-    'public key': 'customField12',
+    'public_key': 'customField12',
     'telephone': 'customField13',
     'training': 'customField18',
     'altstadt': 'customField15',

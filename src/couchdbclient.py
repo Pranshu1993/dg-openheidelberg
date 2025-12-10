@@ -2,6 +2,7 @@ from config import Config
 import couchdb2
 import os
 from typing import List, Dict, Any, Optional
+import src.openproject as op
 
 DEBUG = os.getenv("DEBUG", "0") in ("1", "true", "True")
 
@@ -125,3 +126,31 @@ class Client:
         """
         rows = self.db.view(designname='app', viewname='all_entries', include_docs=True)
         return [row.doc for row in rows if not row.id.startswith('_design/')]
+    
+    def create_doc_from_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a CouchDB document from an OpenProject task.
+        Args:
+            task: The OpenProject task dictionary.
+        Returns:
+            The created CouchDB document.
+        """
+        doc_id = f"{task.get(op.CUSTOMFIELD['firstname'],"-")}.{task.get(op.CUSTOMFIELD['lastname'])}".replace(" ", "_").lower()
+        doc = {
+            "_id": doc_id,
+            "source": {"path": "openproject",
+                       "author": task['_links']['author']['title']
+                       },
+            "username": task.get(op.CUSTOMFIELD['username'], ''),
+            "email": task.get(op.CUSTOMFIELD['email'], ''),
+            "firstname": task.get(op.CUSTOMFIELD['firstname'], ''),
+            "lastname": task.get(op.CUSTOMFIELD['lastname'], ''),
+            "member_id": int(task['id']),
+            "git": task.get(op.CUSTOMFIELD['git'], ''),
+            "public_key": task.get(op.CUSTOMFIELD['public_key'], ''),
+            "telephone": task.get(op.CUSTOMFIELD['telephone'], ''),
+            # Additional fields can be added here as needed
+        }
+        self.db.put(doc)
+        # need _rev to update doc later
+        return self.db.get(doc_id)

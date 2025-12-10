@@ -4,16 +4,24 @@ tags:
   - openheidelberg
 status: Request for Comment
 ---
-## Goal:
+
+# Readme
+
+## Goal
+
 creating a scalable , highly automated process to onboard new members
 
 ---
+
 ## Architecture Decisions
+
 - A Plone Grafitti instance is used to setup basic onboarding information (@maikroeder)
 - CSV Files are used as information exchange format.  This is due to change in a later stage of the project, yet for now their easy readability and flexibility outweigh their disadvantages.
 - Nextcloud is used to store and share Csv Assets
 - Dagster is used to orchestrate data pipelines
+
 ---
+
 ```mermaid
 sequenceDiagram
     participant Grafitti
@@ -44,15 +52,20 @@ sequenceDiagram
 ```
 
 ---
-## Out of Scope 
+
+## Out of Scope
+
 remaining manual tasks (for now):
+
 - creation of unix accounts
-- github 
+- github
 - xwiki
 - onboarding via  [[MCP Agent]]
 
 ---
+
 ## Initiation
+
 https:join.openheidelberg.de provides a plone based application to create datasets of onboarding candidates. (needs more elaboration )
 Result is a csv file  firstname,lastname,email,(username)
 Alternatively the csv file can be created by sending an onboarding command to our oh-bot
@@ -62,6 +75,7 @@ Optionally a authorized Nextcloud User can edit the file manually. (like adding 
 [onboarding_users.csv](https://nx.openheidelberg.de/s/MDAYrcZtHAn8qHm)
 
 ---
+
 onboarding.csv definition
 
 ```plantuml
@@ -81,11 +95,14 @@ when username is missing it is firstletter of firstname followed by lastname.
 when lastname is also missing it is name part of emailaddress.
 
 ---
+
 ## Accumulation
+
 a dagster datapipeline accumulates user data via api calls from openproject, nextcloud, (xwiki) into additional columns.
 Users without existing accounts have an onboarding tasks created in openproject.
-The total accumulated user data is write to a csv file accounts.csv and is uploaded to nextcloud 
+The total accumulated user data is write to a csv file accounts.csv and is uploaded to nextcloud.
 This file can be viewed to provide a central overview on all accounts and their actual status.
+
 ```plantuml
 @startjson
 #highlight "firstname"
@@ -106,12 +123,15 @@ This file can be viewed to provide a central overview on all accounts and their 
 } 
 @endjson
 ```
+
 Accounts that are not used for a given time can be automatically revoked.
 In addition a json file could be created, that also includes group memberships, roles etc.
 is there a nice json renderer in nextcloud?
 
 ---
-## Authorization  
+
+## Authorization
+
 Members of the Onboarding Group in Openproject are informed about a new Onboarding tasks.
 (status: new)
 The onboarding tasks are detailed (which accounts, group memberships, roles etc) and authorized.
@@ -121,22 +141,48 @@ A task can be edited at a later time to grant additional accounts
 (status: in progress)
 
 ---
-## Processing 
+
+## Processing
 
 A dagster pipeline fetches all tasks of status in progress, creates accounts, roles etc and sets (status: processed*)
-> * a custom status 'processed' is proposed here so the task will stay visible in the default view.
-> this is open for discussion 
+
+> a custom status 'processed' is proposed here so the task will stay visible in the default view.
+> this is open for discussion
 
 The accumulation pipeline is triggered to reflect the changes in accounts.csv
 
 ---
-## Onboarding 
+
+## Onboarding
+
 An invitation mail is send to new users.
-The new users are directed to the polls section. 
+The new users are directed to the polls section.
 There they can choose an available onboarding event.
 Onboarding will be done via jitsi and in realspace.
 
+## Development
+
+1. clone/fork this repository.
+
+``` uv sync ```
+
+1. get a working config file.
+
+The config file is expected at
+
+- ~/.config/dg-openheidelberg/config.toml
+- $DAGSTER_HOME/configs/dg-openheidelberg/config.toml
+- /etc/dg-openheidelberg/config.toml
+- /usr/local/etc/dg-openheidelberg/config.toml
+or passed in the env var $ONBOARDING_CONFIG
+
+1. run a local environment
+
+``` uv dg dev ```
+
 ---
+
 resources:
-https://docs.dagster.io/deployment/oss/deployment-options/deploying-dagster-as-a-service
-https://github.com/x1xhlol/system-prompts-and-models-of-ai-tools/blob/main/Junie/Prompt.txt
+
+- [Server Deploament](https://docs.dagster.io/deployment/oss/deployment-options/deploying-dagster-as-a-service)
+- [Prompting](https://github.com/x1xhlol/system-prompts-and-models-of-ai-tools/blob/main/Junie/Prompt.txt)
